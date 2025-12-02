@@ -1,0 +1,91 @@
+
+---
+- name: Installer logiciels et configurer les machines
+  hosts: all
+  remote_user: root
+  become: yes
+  
+  vars:
+    message_machine1: "Bonjour depuis Ansible sur machine 1"
+    message_machine2: "Bonjour depuis Ansible sur machine 2"
+    message_machine3: "Bonjour depuis Ansible sur machine 3"
+
+  tasks:
+    # Étape 3 : Installer les paquets selon la machine
+    - name: Installer Apache2 et MySQL sur machine 1 et 2
+      apt:
+        name: "{{ item }}"
+        state: present
+        update_cache: yes
+      loop:
+        - apache2
+        - mysql-server
+      when: inventory_hostname in ['apache_sql']
+
+    - name: Installer Git, Nginx et Cowsay sur machine 3
+      apt:
+        name: "{{ item }}"
+        state: present
+        update_cache: yes
+      loop:
+        - git
+        - nginx
+        - cowsay
+      when: inventory_hostname == 'machine3'
+
+    # Étape 4 : Installer ufw uniquement sur Ubuntu
+    - name: Installer ufw si OS = Ubuntu
+      apt:
+        name: ufw
+        state: present
+      when: ansible_distribution == "Ubuntu"
+
+    # Étape 5 : Modifier la page HTML si Apache ou Nginx est installé
+    - name: Vérifier si Apache est installé
+      stat:
+        path: /etc/apache2
+      register: apache_installed
+
+    - name: Vérifier si Nginx est installé
+      stat:
+        path: /etc/nginx
+      register: nginx_installed
+
+    - name: Modifier la page HTML pour Apache
+      copy:
+        content: "{{ message_machine1 if inventory_hostname == 'machine1' else (message_machine2 if inventory_hostname == 'machine2' else message_machine3) }}"
+        dest: /var/www/html/index.html
+      when: apache_installed.stat.exists
+
+    - name: Modifier la page HTML pour Nginx
+      copy:
+        content: "{{ message_machine3 }}"
+        dest: /var/www/html/index.html
+      when: nginx_installed.stat.exists
+
+    - name: Démarrer Apache si installé
+      service:
+        name: apache2
+        state: started
+        enabled: yes
+      when: apache_installed.stat.exists
+
+    - name: Démarrer Nginx si installé
+      service:
+        name: nginx
+        state: started
+        enabled: yes
+      when: nginx_installed.stat.exists
+
+    # Étape 6 : Créer /etc/jour avec logique jour/heure
+    - name: Determiner jour et heure
+      set_fact:
+        jour: "{{ ansible_date_time.day | int }}"
+        heure: "{{ ansible_date_time.hour | int }}"
+
+    - name: Definir message selon jour et heure
+      ansible.builtin.template:
+       src: template/jour.j2
+       dest: /etc/jour
+       mode: '0644'
+
