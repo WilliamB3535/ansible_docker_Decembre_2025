@@ -1,0 +1,36 @@
+
+---
+- name: Installer Apache2 et MySQL puis personnaliser la page HTML
+  hosts: all
+  remote_user: root
+  become: yes
+  tasks:
+
+    - name: Installer Apache2
+      apt:
+        name: apache2
+        state: present
+        update_cache: yes
+
+    - name: Installer MySQL Server
+      apt:
+        name: mysql-server
+        state: present
+        update_cache: yes
+
+    - name: Vérifier si Apache2 est installé
+      stat:
+        path: /etc/apache2
+      register: apache_installed
+
+    - name: Modifier la page index.html si Apache2 est installé
+      copy:
+        content: "Bonjour depuis Ansible"
+        dest: /var/www/html/index.html
+      when: apache_installed.stat.exists
+
+    - name: Démarrer et activer le service Apache2
+      service:
+        name: apache2
+        state: started
+        enabled: yes
